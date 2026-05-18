@@ -1,6 +1,7 @@
 const STORE_KEY = "tsos_v1";
 
 const defaultState = {
+const state = {
   lang: "en",
   currentUser: null,
   staff: [
@@ -20,6 +21,9 @@ state.currentUser = null;
 const i18n = {
   en: { login_title: "Staff Login", login_hint: "Use Staff Code + PIN (Admin-created accounts only).", staff_code: "Staff Code", pin: "PIN", login: "Login", logout: "Logout", sync: "Sync", time_tracking: "Time Tracking", tickets: "Tickets", create_ticket: "Create Ticket", chat: "Internal Chat", send: "Send", manager_tools: "Manager / Supervisor Tools", admin_tools: "Admin: Staff", add_staff: "Add Staff" },
   ar: { login_title: "تسجيل دخول الموظف", login_hint: "الدخول فقط بكود الموظف والرقم السري المضاف من الأدمن.", staff_code: "كود الموظف", pin: "الرقم السري", login: "دخول", logout: "خروج", sync: "مزامنة", time_tracking: "تتبع الوقت", tickets: "التكتات", create_ticket: "إنشاء تكت", chat: "الشات الداخلي", send: "إرسال", manager_tools: "أدوات المشرف / المدير", admin_tools: "الأدمن: الموظفين", add_staff: "إضافة موظف" }
+const i18n = {
+  en: { login_title: "Staff Login", staff_code: "Staff Code", pin: "PIN", login: "Login", logout: "Logout", time_tracking: "Time Tracking", tickets: "Tickets", create_ticket: "Create Ticket", chat: "Internal Chat", send: "Send", manager_tools: "Manager / Supervisor Tools" },
+  ar: { login_title: "تسجيل دخول الموظف", staff_code: "كود الموظف", pin: "الرقم السري", login: "دخول", logout: "خروج", time_tracking: "تتبع الوقت", tickets: "التكتات", create_ticket: "إنشاء تكت", chat: "الشات الداخلي", send: "إرسال", manager_tools: "أدوات المشرف / المدير" }
 };
 
 const ticketTypes = ["address_change", "product_not_arrived", "item_not_genuine", "return", "exchange", "angry_customer", "refund_request", "chargeback_risk", "general_question"];

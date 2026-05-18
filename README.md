@@ -9,6 +9,7 @@ This version is upgraded to a **team-runnable MVP** on pure HTML/CSS/JS with per
 - Break/late/pay estimate summary per user.
 - Ticket status update tool (Open, Waiting, Escalated, Resolved, Closed).
 - TeleSyriana-style dark blue/cyan theme and bilingual UI (Arabic/English) + RTL direction.
+- Bilingual UI (Arabic/English) + RTL direction.
 
 ## Important
 This is still an MVP front-end package. For full production operation you should next connect:
@@ -25,3 +26,9 @@ Open `index.html` in browser.
 - Supervisor: `1001 / 5566`
 - Manager: `2001 / 7788`
 - Admin: `9999 / 0000`
+
+## Next steps
+- Connect Firebase Authentication / Firestore persistence
+- Add Shopify order autofill API
+- Add reports (morning/midday/end-shift) persistence/export
+- Add SLA timers and advanced performance analytics
