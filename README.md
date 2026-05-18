@@ -7,6 +7,8 @@ This version is upgraded to a **team-runnable MVP** on pure HTML/CSS/JS with per
 - Admin/Manager staff creation form (no public registration flow).
 - Role-aware visibility for tickets and manager tools.
 - Break/late/pay estimate summary per user.
+- Ticket status update tool (Open, Waiting, Escalated, Resolved, Closed).
+- TeleSyriana-style dark blue/cyan theme and bilingual UI (Arabic/English) + RTL direction.
 - Bilingual UI (Arabic/English) + RTL direction.
 
 ## Important

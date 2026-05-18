@@ -9,7 +9,7 @@
   <body>
     <header class="topbar">
       <h1>TeleSyriana Support OS</h1>
-      <div class="toolbar">
+      <div class="toolbar row gap">
         <div class="lang-toggle">
           <button id="langEn" class="secondary active">EN</button>
           <button id="langAr" class="secondary">AR</button>
@@ -22,22 +22,13 @@
         <h2 data-i18n="login_title">Staff Login</h2>
         <p data-i18n="login_hint">Use Staff Code + PIN (Admin-created accounts only).</p>
         <form id="loginForm" class="compact-form">
-      <div class="lang-toggle">
-        <button id="langEn" class="active">EN</button>
-        <button id="langAr">AR</button>
-      </div>
-    </header>
-
-    <main id="app" class="layout">
-      <section class="card" id="loginCard">
-        <h2 data-i18n="login_title">Staff Login</h2>
-        <form id="loginForm">
           <label data-i18n="staff_code">Staff Code</label>
           <input id="staffCode" required placeholder="0001" />
           <label data-i18n="pin">PIN</label>
           <input id="pin" type="password" required placeholder="2411" />
           <button type="submit" data-i18n="login">Login</button>
         </form>
+        <p class="notice">Theme aligned toward TeleSyriana brand palette (blue/cyan dark).</p>
       </section>
 
       <section class="card hidden" id="dashboardCard">
@@ -47,7 +38,6 @@
             <button id="syncBtn" class="secondary" data-i18n="sync">Sync</button>
             <button id="logoutBtn" class="secondary" data-i18n="logout">Logout</button>
           </div>
-          <button id="logoutBtn" class="secondary" data-i18n="logout">Logout</button>
         </div>
 
         <div class="grid">
@@ -72,6 +62,15 @@
               <button type="submit" data-i18n="create_ticket">Create Ticket</button>
             </form>
             <ul id="ticketsList" class="list"></ul>
+          </article>
+
+          <article class="panel">
+            <h3>Ticket Status Update</h3>
+            <form id="statusForm" class="compact-form">
+              <input id="statusTicketId" placeholder="TK-0000001" required />
+              <select id="statusValue"></select>
+              <button type="submit">Update Status</button>
+            </form>
           </article>
 
           <article class="panel">
