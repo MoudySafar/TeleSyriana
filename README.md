@@ -1,17 +1,23 @@
-# TeleSyriana Support OS (HTML/CSS/JS)
+# TeleSyriana Support OS (MVP - Team Runnable)
 
-Lightweight internal support system prototype for Arabic/English teams.
+This version is upgraded to a **team-runnable MVP** on pure HTML/CSS/JS with persistent local storage.
 
-## Features included
-- Staff-code + PIN login (no public registration)
-- Role-aware dashboard for Agent / Supervisor / Manager / Admin
-- Time tracking (clock in/out + break tracking with late-break visibility)
-- Ticket creation with priority, category, and automatic escalation triggers
-- Basic internal team chat
-- Bilingual UI toggle (English / Arabic)
+## What is now improved
+- Persistent data using browser storage (staff, tickets, chat, time tracking).
+- Admin/Manager staff creation form (no public registration flow).
+- Role-aware visibility for tickets and manager tools.
+- Break/late/pay estimate summary per user.
+- Bilingual UI (Arabic/English) + RTL direction.
+
+## Important
+This is still an MVP front-end package. For full production operation you should next connect:
+- Firebase Authentication or Cloud Functions for secure staff-code auth
+- Firestore for shared realtime multi-user data
+- Firebase Storage for chat attachments and profile assets
+- Security rules for strict role-based enforcement
 
 ## Run
-Open `index.html` directly in browser, or host it on Firebase Hosting.
+Open `index.html` in browser.
 
 ## Demo users
 - Agent: `0001 / 2411`

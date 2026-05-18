@@ -9,6 +9,19 @@
   <body>
     <header class="topbar">
       <h1>TeleSyriana Support OS</h1>
+      <div class="toolbar">
+        <div class="lang-toggle">
+          <button id="langEn" class="secondary active">EN</button>
+          <button id="langAr" class="secondary">AR</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card" id="loginCard">
+        <h2 data-i18n="login_title">Staff Login</h2>
+        <p data-i18n="login_hint">Use Staff Code + PIN (Admin-created accounts only).</p>
+        <form id="loginForm" class="compact-form">
       <div class="lang-toggle">
         <button id="langEn" class="active">EN</button>
         <button id="langAr">AR</button>
@@ -30,6 +43,10 @@
       <section class="card hidden" id="dashboardCard">
         <div class="dashboard-head">
           <h2 id="welcomeText"></h2>
+          <div class="row gap">
+            <button id="syncBtn" class="secondary" data-i18n="sync">Sync</button>
+            <button id="logoutBtn" class="secondary" data-i18n="logout">Logout</button>
+          </div>
           <button id="logoutBtn" class="secondary" data-i18n="logout">Logout</button>
         </div>
 
@@ -70,6 +87,20 @@
             <h3 data-i18n="manager_tools">Manager / Supervisor Tools</h3>
             <p id="teamSummary">-</p>
             <ul id="alertsList" class="list"></ul>
+          </article>
+
+          <article class="panel" id="adminPanel">
+            <h3 data-i18n="admin_tools">Admin: Staff</h3>
+            <form id="staffForm" class="compact-form">
+              <input id="newStaffCode" placeholder="Staff Code" required />
+              <input id="newStaffName" placeholder="Name" required />
+              <select id="newStaffRole"></select>
+              <input id="newStaffPin" placeholder="PIN" required />
+              <input id="newStaffRate" type="number" step="0.01" placeholder="Hourly Rate" required />
+              <select id="newStaffCurrency"><option>USD</option><option>GBP</option></select>
+              <button type="submit" data-i18n="add_staff">Add Staff</button>
+            </form>
+            <ul id="staffList" class="list"></ul>
           </article>
         </div>
       </section>
