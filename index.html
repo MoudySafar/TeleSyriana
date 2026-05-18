@@ -22,6 +22,16 @@
         <h2 data-i18n="login_title">Staff Login</h2>
         <p data-i18n="login_hint">Use Staff Code + PIN (Admin-created accounts only).</p>
         <form id="loginForm" class="compact-form">
+      <div class="lang-toggle">
+        <button id="langEn" class="active">EN</button>
+        <button id="langAr">AR</button>
+      </div>
+    </header>
+
+    <main id="app" class="layout">
+      <section class="card" id="loginCard">
+        <h2 data-i18n="login_title">Staff Login</h2>
+        <form id="loginForm">
           <label data-i18n="staff_code">Staff Code</label>
           <input id="staffCode" required placeholder="0001" />
           <label data-i18n="pin">PIN</label>
@@ -37,6 +47,7 @@
             <button id="syncBtn" class="secondary" data-i18n="sync">Sync</button>
             <button id="logoutBtn" class="secondary" data-i18n="logout">Logout</button>
           </div>
+          <button id="logoutBtn" class="secondary" data-i18n="logout">Logout</button>
         </div>
 
         <div class="grid">

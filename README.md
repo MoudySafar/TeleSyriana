@@ -24,3 +24,9 @@ Open `index.html` in browser.
 - Supervisor: `1001 / 5566`
 - Manager: `2001 / 7788`
 - Admin: `9999 / 0000`
+
+## Next steps
+- Connect Firebase Authentication / Firestore persistence
+- Add Shopify order autofill API
+- Add reports (morning/midday/end-shift) persistence/export
+- Add SLA timers and advanced performance analytics
