@@ -1,0 +1,34 @@
+name: TeleSyriana V2 Foundation Tests
+
+on:
+  pull_request:
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2-foundation-tests.yml"
+  push:
+    branches:
+      - development/v2
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2-foundation-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run V2 foundation tests
+        working-directory: v2
+        run: npm test
