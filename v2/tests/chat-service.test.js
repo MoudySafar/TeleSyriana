@@ -198,7 +198,7 @@ test("message send supports multiline body and reactions", async () => {
   assert.equal(state.reactions.length, 1);
 });
 
-test("cloud read state advances and unread count survives independent of browser state", async () => {
+test("cloud read state advances only to a real message and unread count survives browser changes", async () => {
   const { repo, state } = fakeRepositories();
   const service = serviceWith(repo);
 
@@ -216,12 +216,27 @@ test("cloud read state advances and unread count survives independent of browser
     actorId: "agent-b",
     projectId: "ipro",
     channelId: "chat:ipro:general",
-    sequenceNumber: message.sequenceNumber,
+    messageId: message.id,
   });
 
   channels = await service.listChannels({ actorId: "agent-b", projectId: "ipro" });
   assert.equal(channels.find((channel) => channel.id === "chat:ipro:general").unreadCount, 0);
   assert.equal(state.readStates.get("chat:ipro:general:agent-b").lastReadSequence, message.sequenceNumber);
+});
+
+test("read state rejects a guessed or non-existent future message", async () => {
+  const { repo } = fakeRepositories();
+  const service = serviceWith(repo);
+
+  await assert.rejects(
+    service.markRead({
+      actorId: "agent-b",
+      projectId: "ipro",
+      channelId: "chat:ipro:general",
+      messageId: "message:not-real",
+    }),
+    (error) => error.code === "NOT_FOUND",
+  );
 });
 
 test("Agent cannot delete another employee message but Supervisor can moderate project chat", async () => {
