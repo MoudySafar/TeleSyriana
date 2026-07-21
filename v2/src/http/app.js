@@ -7,6 +7,7 @@ import { checkDatabaseHealth } from "../db/postgres.js";
 import { createRepositories } from "../db/repositories.js";
 import { createPersistentEmployeeService } from "../employees/persistent-employee-service.js";
 import { createShopifyIntegrationService } from "../integrations/shopify-service.js";
+import { createShopifyOrderService } from "../orders/shopify-order-service.js";
 import { createProjectService } from "../projects/project-service.js";
 
 const DEFAULT_COOKIE_NAME = "ts_session";
@@ -88,6 +89,7 @@ function defaultServices(pool) {
     users: repositories.users,
     auth: authRepository,
   });
+  const integrations = createShopifyIntegrationService({ pool });
 
   return {
     authentication,
@@ -96,7 +98,11 @@ function defaultServices(pool) {
       memberships: repositories.memberships,
     }),
     employees: createPersistentEmployeeService({ pool }),
-    integrations: createShopifyIntegrationService({ pool }),
+    integrations,
+    orders: createShopifyOrderService({
+      repositories,
+      integrations,
+    }),
     healthCheck: () => checkDatabaseHealth(pool),
   };
 }
@@ -105,11 +111,11 @@ function statusForError(error) {
   if (error?.code === "UNAUTHENTICATED" || error?.code === "INVALID_CREDENTIALS") return 401;
   if (error?.code === "FORBIDDEN") return 403;
   if (error?.code === "NOT_FOUND") return 404;
+  if (error?.code === "INVALID_INPUT" || error?.code === "23514") return 400;
   if (error?.code === "AUTH_LOCKED") return 429;
   if (error?.code === "CONFLICT" || error?.code === "23505") return 409;
   if (["SHOPIFY_AUTH_ERROR", "SHOPIFY_SHOP_MISMATCH", "SHOPIFY_VERIFY_ERROR"].includes(error?.code)) return 422;
   if (["SHOPIFY_NETWORK_ERROR", "SHOPIFY_API_ERROR", "SHOPIFY_GRAPHQL_ERROR"].includes(error?.code)) return 502;
-  if (error?.code === "23514") return 400;
   return 500;
 }
 
@@ -269,6 +275,15 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
       targetUserId: req.params.userId,
     });
     res.json({ success: true, employee: safeUser(result.user) });
+  });
+
+  app.get("/api/projects/:projectId/orders/search", requireAuth, requireProject, async (req, res) => {
+    const result = await resolved.orders.search({
+      actor: req.auth.user,
+      projectId: req.params.projectId,
+      query: req.query.q,
+    });
+    res.json({ success: true, ...result });
   });
 
   app.get("/api/projects/:projectId/integrations/shopify", requireAuth, requireProject, async (req, res) => {
