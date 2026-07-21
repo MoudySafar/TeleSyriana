@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { CAPABILITIES, hasCapability } from "../core/access-control.js";
 import { withTransaction } from "../db/postgres.js";
 import { createRepositories } from "../db/repositories.js";
+import { createShopifyAdminClient } from "./shopify-client.js";
 import {
   decryptIntegrationCredentials,
   encryptIntegrationCredentials,
@@ -71,11 +72,34 @@ export function createShopifyIntegrationService({
   repositoryFactory = persistenceRepositories,
   masterKey = process.env.INTEGRATION_MASTER_KEY,
   env = process.env,
+  client = createShopifyAdminClient(),
 } = {}) {
   if (!pool) throw new TypeError("A database pool is required");
 
   const transaction = (work) =>
     runInTransaction(pool, async (db) => work(repositoryFactory(db)));
+
+  function resolveConfiguration(connection) {
+    if (connection.credentialSource === "legacy_env") {
+      return {
+        connection: publicConnection(connection),
+        shopDomain: canonicalShopDomain(env.SHOPIFY_SHOP),
+        // Keep the current iPro API version unless the existing environment changes it.
+        apiVersion: env.SHOPIFY_API_VERSION || connection.apiVersion || "2026-04",
+        clientId: required(env.SHOPIFY_CLIENT_ID, "SHOPIFY_CLIENT_ID"),
+        clientSecret: required(env.SHOPIFY_CLIENT_SECRET, "SHOPIFY_CLIENT_SECRET"),
+      };
+    }
+
+    const credentials = decryptIntegrationCredentials(connection.credentialPayload, masterKey);
+    return {
+      connection: publicConnection(connection),
+      shopDomain: canonicalShopDomain(connection.shopDomain),
+      apiVersion: connection.apiVersion || "2026-07",
+      clientId: required(credentials.clientId, "clientId"),
+      clientSecret: required(credentials.clientSecret, "clientSecret"),
+    };
+  }
 
   return {
     async list({ actorId, projectId }) {
@@ -102,7 +126,8 @@ export function createShopifyIntegrationService({
           projectId,
           label: String(input?.label || "Shopify").trim() || "Shopify",
           shopDomain,
-          apiVersion: String(input?.apiVersion || env.SHOPIFY_API_VERSION || "2026-04").trim(),
+          // New project connections use the current Admin API generation by default.
+          apiVersion: String(input?.apiVersion || "2026-07").trim(),
           credentialPayload,
           createdByUserId: actor.id,
         });
@@ -121,6 +146,66 @@ export function createShopifyIntegrationService({
 
         return publicConnection(connection);
       });
+    },
+
+    async verify({ actorId, projectId, connectionId }) {
+      const preparation = await transaction(async (repositories) => {
+        await requireIntegrationManager(repositories, { actorId, projectId });
+        const connection = await repositories.shopify.findById(connectionId);
+        if (!connection || connection.projectId !== projectId) {
+          const error = new Error("Shopify connection not found");
+          error.code = "NOT_FOUND";
+          throw error;
+        }
+        return {
+          connection,
+          configuration: resolveConfiguration(connection),
+        };
+      });
+
+      let verification;
+      let verificationError = null;
+      try {
+        verification = await client.verifyConfiguration(preparation.configuration);
+      } catch (error) {
+        verificationError = error;
+      }
+
+      const updated = await transaction(async (repositories) => {
+        const { actor } = await requireIntegrationManager(repositories, { actorId, projectId });
+        const current = await repositories.shopify.findById(connectionId);
+        if (!current || current.projectId !== projectId) {
+          const error = new Error("Shopify connection not found");
+          error.code = "NOT_FOUND";
+          throw error;
+        }
+
+        const connection = await repositories.shopify.markVerification({
+          connectionId,
+          verified: !verificationError,
+        });
+
+        await repositories.audit.append({
+          actorUserId: actor.id,
+          projectId,
+          action: verificationError
+            ? "integration.shopify_verification_failed"
+            : "integration.shopify_verified",
+          targetType: "shopify_connection",
+          targetId: connectionId,
+          metadata: verificationError
+            ? { errorCode: verificationError.code || "SHOPIFY_VERIFY_ERROR" }
+            : { shopName: verification.shop.name, shopDomain: verification.shop.myshopifyDomain },
+        });
+
+        return connection;
+      });
+
+      if (verificationError) throw verificationError;
+      return {
+        connection: publicConnection(updated),
+        shop: verification.shop,
+      };
     },
 
     async activateVerifiedAsDefault({ actorId, projectId, connectionId }) {
@@ -169,25 +254,7 @@ export function createShopifyIntegrationService({
         error.code = "NOT_FOUND";
         throw error;
       }
-
-      if (connection.credentialSource === "legacy_env") {
-        return {
-          connection: publicConnection(connection),
-          shopDomain: canonicalShopDomain(env.SHOPIFY_SHOP),
-          apiVersion: env.SHOPIFY_API_VERSION || connection.apiVersion || "2026-04",
-          clientId: required(env.SHOPIFY_CLIENT_ID, "SHOPIFY_CLIENT_ID"),
-          clientSecret: required(env.SHOPIFY_CLIENT_SECRET, "SHOPIFY_CLIENT_SECRET"),
-        };
-      }
-
-      const credentials = decryptIntegrationCredentials(connection.credentialPayload, masterKey);
-      return {
-        connection: publicConnection(connection),
-        shopDomain: canonicalShopDomain(connection.shopDomain),
-        apiVersion: connection.apiVersion || "2026-04",
-        clientId: required(credentials.clientId, "clientId"),
-        clientSecret: required(credentials.clientSecret, "clientSecret"),
-      };
+      return resolveConfiguration(connection);
     },
   };
 }
