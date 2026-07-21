@@ -16,10 +16,11 @@ function createFakeRepositories() {
   ];
   const audit = [];
   const teamMembers = [];
+  const credentials = [];
   const revokedSessionUsers = [];
 
   return {
-    state: { users, memberships, audit, teamMembers, revokedSessionUsers },
+    state: { users, memberships, audit, teamMembers, credentials, revokedSessionUsers },
     users: {
       async findById(id) { return users.get(id) ?? null; },
       async findByStaffCode(staffCode) {
@@ -77,6 +78,10 @@ function createFakeRepositories() {
       },
     },
     auth: {
+      async upsertCredential(input) {
+        credentials.push(input);
+        return input;
+      },
       async revokeAllUserSessions(userId) {
         revokedSessionUsers.push(userId);
         return [];
@@ -98,7 +103,7 @@ function serviceWith(repositories) {
   return { service, getTransactions: () => transactions };
 }
 
-test("Manager employee creation persists user membership team assignment and audit in one transaction", async () => {
+test("Manager employee creation persists user membership credential team assignment and audit in one transaction", async () => {
   const repositories = createFakeRepositories();
   const { service, getTransactions } = serviceWith(repositories);
 
@@ -113,14 +118,35 @@ test("Manager employee creation persists user membership team assignment and aud
       teamId: "support",
       locale: "ar",
       theme: "dark",
+      temporarySecret: "241155",
     },
   });
 
   assert.equal(getTransactions(), 1);
   assert.equal(result.user.displayName, "Reema Obaid");
   assert.equal(result.membership.projectId, "ipro");
+  assert.equal(result.mustResetLoginSecret, true);
   assert.equal(repositories.state.teamMembers[0].teamId, "support");
+  assert.equal(repositories.state.credentials[0].userId, "reema");
+  assert.equal(repositories.state.credentials[0].mustReset, true);
+  assert.notEqual(repositories.state.credentials[0].secretHash, "241155");
   assert.equal(repositories.state.audit[0].action, "employee.created_for_project");
+});
+
+test("employee creation rejects missing temporary login secret before persistence", async () => {
+  const repositories = createFakeRepositories();
+  const { service, getTransactions } = serviceWith(repositories);
+
+  await assert.rejects(
+    service.createForProject({
+      actorId: "manager",
+      projectId: "ipro",
+      input: { id: "reema", staffCode: "1042", displayName: "Reema" },
+    }),
+    /temporarySecret is required/,
+  );
+
+  assert.equal(getTransactions(), 0);
 });
 
 test("Manager can persist Agent to Supervisor promotion inside iPro", async () => {
