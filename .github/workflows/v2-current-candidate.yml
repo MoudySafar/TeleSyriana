@@ -19,42 +19,86 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  test:
+    name: test (${{ matrix.file }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        file:
+          - audit-log-service.test.js
+          - auth.test.js
+          - chat-service.test.js
+          - employee-directory-service.test.js
+          - global-employee-service.test.js
+          - http-api.test.js
+          - integration-secret-crypto.test.js
+          - job-service.test.js
+          - modular-http-api.test.js
+          - persistent-employee-service.test.js
+          - profile-service.test.js
+          - project-admin-service.test.js
+          - project-service.test.js
+          - realtime-events.test.js
+          - repositories.test.js
+          - schema-contract.test.js
+          - shopify-client.test.js
+          - shopify-order-service.test.js
+          - shopify-service.test.js
+          - team-service.test.js
+          - ticket-assignment-service.test.js
+          - ticket-queue-service.test.js
+          - ticket-service.test.js
+          - workspace-service.test.js
     defaults:
       run:
         working-directory: v2
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          show-progress: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Run test file
+        run: node --test tests/${{ matrix.file }}
 
-      - name: Run V2 tests
-        run: npm test
-
+  syntax:
+    name: canonical syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund --silent
       - name: Check canonical server modules
         run: |
-          node --check src/candidate-services-current.js
-          node --check src/http/candidate-app-current.js
+          node --check src/candidate-services.js
+          node --check src/http/candidate-app.js
           node --check src/http/candidate-platform-current.js
           node --check src/http/serve-current.js
           node --check src/realtime/project-event-broker.js
           node --check src/http/routes/realtime-routes.js
           node --check src/tickets/ticket-assignment-service.js
           node --check src/teams/team-service.js
-
       - name: Check browser modules
         run: |
           node --check web/app.js
           node --check web/live-events.js
           node --check web/i18n.js
-          node --check web/management.js
+          node --check web/management-tools.js
