@@ -2,11 +2,15 @@ import express from "express";
 
 import { createAuthRepository } from "../auth/auth-repository.js";
 import { createAuthenticationService } from "../auth/auth-service.js";
+import { createChatService } from "../chat/chat-service.js";
 import { isGlobalProjectViewer } from "../core/access-control.js";
 import { checkDatabaseHealth } from "../db/postgres.js";
 import { createRepositories } from "../db/repositories.js";
 import { createPersistentEmployeeService } from "../employees/persistent-employee-service.js";
+import { createChatRouter } from "./routes/chat-routes.js";
+import { createJobRouter } from "./routes/job-routes.js";
 import { createShopifyIntegrationService } from "../integrations/shopify-service.js";
+import { createJobService } from "../jobs/job-service.js";
 import { createShopifyOrderService } from "../orders/shopify-order-service.js";
 import { createProjectService } from "../projects/project-service.js";
 import { createTicketService } from "../tickets/ticket-service.js";
@@ -105,6 +109,8 @@ function defaultServices(pool) {
       integrations,
     }),
     tickets: createTicketService({ pool }),
+    chat: createChatService({ pool }),
+    jobs: createJobService({ pool }),
     healthCheck: () => checkDatabaseHealth(pool),
   };
 }
@@ -365,6 +371,20 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
     });
     res.json({ success: true, ...result });
   });
+
+  app.use(
+    "/api/projects/:projectId/chat",
+    requireAuth,
+    requireProject,
+    createChatRouter({ chat: resolved.chat }),
+  );
+
+  app.use(
+    "/api/projects/:projectId/jobs",
+    requireAuth,
+    requireProject,
+    createJobRouter({ jobs: resolved.jobs }),
+  );
 
   app.get("/api/projects/:projectId/integrations/shopify", requireAuth, requireProject, async (req, res) => {
     const connections = await resolved.integrations.list({
