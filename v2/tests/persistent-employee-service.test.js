@@ -9,10 +9,18 @@ function createFakeRepositories() {
     ["manager", { id: "manager", staffCode: "2001", displayName: "Manager", platformRole: PLATFORM_ROLES.MEMBER, status: "active" }],
     ["hr", { id: "hr", staffCode: "3001", displayName: "HR", platformRole: PLATFORM_ROLES.HR, status: "active" }],
     ["agent", { id: "agent", staffCode: "1001", displayName: "Agent", platformRole: PLATFORM_ROLES.MEMBER, status: "active" }],
+    ["reema", { id: "reema", staffCode: "1042", displayName: "Reema Obaid", platformRole: PLATFORM_ROLES.MEMBER, status: "active" }],
+    ["kiddio-supervisor", { id: "kiddio-supervisor", staffCode: "2050", displayName: "Kiddio Supervisor", platformRole: PLATFORM_ROLES.MEMBER, status: "active" }],
   ]);
   const memberships = [
     { id: "m-manager", userId: "manager", projectId: "ipro", role: PROJECT_ROLES.MANAGER, status: "active" },
     { id: "m-agent", userId: "agent", projectId: "ipro", role: PROJECT_ROLES.AGENT, status: "active" },
+    { id: "m-reema-ipro", userId: "reema", projectId: "ipro", role: PROJECT_ROLES.SUPERVISOR, status: "active" },
+    { id: "m-kiddio-supervisor", userId: "kiddio-supervisor", projectId: "kiddio", role: PROJECT_ROLES.SUPERVISOR, status: "active" },
+  ];
+  const teams = [
+    { id: "support", projectId: "ipro", name: "iPro Support", supervisorUserId: "reema", status: "active" },
+    { id: "kiddio-support", projectId: "kiddio", name: "Kiddio Support", supervisorUserId: "kiddio-supervisor", status: "active" },
   ];
   const audit = [];
   const teamMembers = [];
@@ -20,7 +28,7 @@ function createFakeRepositories() {
   const revokedSessionUsers = [];
 
   return {
-    state: { users, memberships, audit, teamMembers, credentials, revokedSessionUsers },
+    state: { users, memberships, teams, audit, teamMembers, credentials, revokedSessionUsers },
     users: {
       async findById(id) { return users.get(id) ?? null; },
       async findByStaffCode(staffCode) {
@@ -65,7 +73,22 @@ function createFakeRepositories() {
         return { ...membership };
       },
     },
+    membershipAdmin: {
+      async assign({ id, userId, projectId, role, supervisorUserId = null }) {
+        const current = memberships.find((item) => item.userId === userId && item.projectId === projectId);
+        if (current) {
+          Object.assign(current, { role, status: "active", supervisorUserId });
+          return { ...current };
+        }
+        const membership = { id, userId, projectId, role, status: "active", supervisorUserId };
+        memberships.push(membership);
+        return membership;
+      },
+    },
     teams: {
+      async listForProject(projectId) {
+        return teams.filter((team) => team.projectId === projectId && team.status === "active");
+      },
       async addMember(input) {
         teamMembers.push(input);
         return input;
@@ -111,11 +134,12 @@ test("Manager employee creation persists user membership credential team assignm
     actorId: "manager",
     projectId: "ipro",
     input: {
-      id: "reema",
-      staffCode: "1042",
-      displayName: "Reema Obaid",
+      id: "new-agent",
+      staffCode: "1050",
+      displayName: "New Agent",
       role: PROJECT_ROLES.AGENT,
       teamId: "support",
+      supervisorUserId: "reema",
       locale: "ar",
       theme: "dark",
       temporarySecret: "241155",
@@ -123,14 +147,36 @@ test("Manager employee creation persists user membership credential team assignm
   });
 
   assert.equal(getTransactions(), 1);
-  assert.equal(result.user.displayName, "Reema Obaid");
+  assert.equal(result.user.displayName, "New Agent");
   assert.equal(result.membership.projectId, "ipro");
+  assert.equal(result.membership.supervisorUserId, "reema");
   assert.equal(result.mustResetLoginSecret, true);
   assert.equal(repositories.state.teamMembers[0].teamId, "support");
-  assert.equal(repositories.state.credentials[0].userId, "reema");
+  assert.equal(repositories.state.credentials[0].userId, "new-agent");
   assert.equal(repositories.state.credentials[0].mustReset, true);
   assert.notEqual(repositories.state.credentials[0].secretHash, "241155");
   assert.equal(repositories.state.audit[0].action, "employee.created_for_project");
+});
+
+test("employee creation rejects team from another project", async () => {
+  const repositories = createFakeRepositories();
+  const { service } = serviceWith(repositories);
+
+  await assert.rejects(
+    service.createForProject({
+      actorId: "manager",
+      projectId: "ipro",
+      input: {
+        id: "bad-team-agent",
+        staffCode: "1051",
+        displayName: "Bad Team Agent",
+        role: PROJECT_ROLES.AGENT,
+        teamId: "kiddio-support",
+        temporarySecret: "241166",
+      },
+    }),
+    /does not belong to this project/,
+  );
 });
 
 test("employee creation rejects missing temporary login secret before persistence", async () => {
@@ -141,7 +187,7 @@ test("employee creation rejects missing temporary login secret before persistenc
     service.createForProject({
       actorId: "manager",
       projectId: "ipro",
-      input: { id: "reema", staffCode: "1042", displayName: "Reema" },
+      input: { id: "new", staffCode: "1099", displayName: "New" },
     }),
     /temporarySecret is required/,
   );
@@ -162,6 +208,69 @@ test("Manager can persist Agent to Supervisor promotion inside iPro", async () =
 
   assert.equal(result.membership.role, PROJECT_ROLES.SUPERVISOR);
   assert.equal(repositories.state.audit.at(-1).action, "employee.project_role_changed");
+});
+
+test("HR can assign Reema as Kiddio Agent without changing her iPro Supervisor membership", async () => {
+  const repositories = createFakeRepositories();
+  const { service } = serviceWith(repositories);
+
+  const result = await service.assignExistingToProject({
+    actorId: "hr",
+    projectId: "kiddio",
+    targetUserId: "reema",
+    role: PROJECT_ROLES.AGENT,
+    supervisorUserId: "kiddio-supervisor",
+    teamId: "kiddio-support",
+  });
+
+  const iproMembership = repositories.state.memberships.find(
+    (item) => item.userId === "reema" && item.projectId === "ipro",
+  );
+  const kiddioMembership = repositories.state.memberships.find(
+    (item) => item.userId === "reema" && item.projectId === "kiddio",
+  );
+
+  assert.equal(iproMembership.role, PROJECT_ROLES.SUPERVISOR);
+  assert.equal(kiddioMembership.role, PROJECT_ROLES.AGENT);
+  assert.equal(kiddioMembership.supervisorUserId, "kiddio-supervisor");
+  assert.equal(result.membership.projectId, "kiddio");
+  assert.equal(repositories.state.audit.at(-1).action, "employee.project_assigned");
+});
+
+test("iPro Manager cannot assign an existing employee into another project", async () => {
+  const repositories = createFakeRepositories();
+  const { service } = serviceWith(repositories);
+
+  await assert.rejects(
+    service.assignExistingToProject({
+      actorId: "manager",
+      projectId: "kiddio",
+      targetUserId: "reema",
+      role: PROJECT_ROLES.AGENT,
+    }),
+    (error) => error.code === "FORBIDDEN",
+  );
+
+  assert.equal(
+    repositories.state.memberships.some((item) => item.userId === "reema" && item.projectId === "kiddio"),
+    false,
+  );
+});
+
+test("cross-project assignment rejects a Supervisor from the wrong project", async () => {
+  const repositories = createFakeRepositories();
+  const { service } = serviceWith(repositories);
+
+  await assert.rejects(
+    service.assignExistingToProject({
+      actorId: "hr",
+      projectId: "kiddio",
+      targetUserId: "reema",
+      role: PROJECT_ROLES.AGENT,
+      supervisorUserId: "manager",
+    }),
+    /active Supervisor or Manager in this project/,
+  );
 });
 
 test("Manager cannot persist a global account disable", async () => {
