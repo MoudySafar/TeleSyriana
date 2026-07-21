@@ -121,7 +121,7 @@ export function createChatService({
   return {
     async listChannels({ actorId, projectId }) {
       return transaction(async (repositories) => {
-        const { actor, memberships, membership } = await loadActorContext(
+        const { actor, membership } = await loadActorContext(
           repositories,
           actorId,
           projectId,
@@ -326,14 +326,7 @@ export function createChatService({
       });
     },
 
-    async markRead({ actorId, projectId, channelId, sequenceNumber }) {
-      const sequence = Number(sequenceNumber);
-      if (!Number.isInteger(sequence) || sequence < 0) {
-        const error = new Error("A valid message sequence is required");
-        error.code = "INVALID_INPUT";
-        throw error;
-      }
-
+    async markRead({ actorId, projectId, channelId, messageId }) {
       return transaction(async (repositories) => {
         const { actor, membership } = await loadActorContext(
           repositories,
@@ -342,10 +335,16 @@ export function createChatService({
           CAPABILITIES.CHAT_READ,
         );
         await requireChannel(repositories, { actor, membership, projectId, channelId });
+
+        const message = await repositories.chat.findMessage(messageId);
+        if (!message || message.channelId !== channelId) {
+          throw notFound("Chat message");
+        }
+
         return repositories.chat.markRead({
           channelId,
           userId: actor.id,
-          sequenceNumber: sequence,
+          sequenceNumber: message.sequenceNumber,
         });
       });
     },
