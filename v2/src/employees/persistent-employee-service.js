@@ -1,3 +1,4 @@
+import { hashLoginSecret } from "../auth/crypto.js";
 import { createAuthRepository } from "../auth/auth-repository.js";
 import { createRepositories } from "../db/repositories.js";
 import { withTransaction } from "../db/postgres.js";
@@ -54,6 +55,14 @@ export function createPersistentEmployeeService({
 
   return {
     async createForProject({ actorId, projectId, input }) {
+      if (!input?.temporarySecret) {
+        throw new Error("temporarySecret is required when creating an employee account");
+      }
+
+      // Hash outside the DB transaction so CPU-heavy key derivation does not
+      // keep a database connection/transaction open longer than necessary.
+      const temporaryCredential = await hashLoginSecret(input.temporarySecret);
+
       return transaction(async (repositories) => {
         const { actor, memberships } = await loadActorContext(repositories, actorId);
         const duplicate = await repositories.users.findByStaffCode(input.staffCode);
@@ -88,8 +97,15 @@ export function createPersistentEmployeeService({
           await repositories.teams.addMember({ teamId: input.teamId, userId: user.id });
         }
 
+        await repositories.auth.upsertCredential({
+          userId: user.id,
+          secretHash: temporaryCredential.hash,
+          secretSalt: temporaryCredential.salt,
+          mustReset: true,
+        });
+
         const audit = await persistAudit(repositories, domain.auditEvent);
-        return { user, membership, audit };
+        return { user, membership, audit, mustResetLoginSecret: true };
       });
     },
 
