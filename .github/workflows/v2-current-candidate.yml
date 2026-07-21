@@ -1,20 +1,27 @@
 name: TeleSyriana V2 Current Candidate
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2-current-candidate.yml"
   push:
     branches:
-      - development/v2
+      - main
     paths:
       - "v2/**"
       - ".github/workflows/v2-current-candidate.yml"
-  pull_request:
-    paths:
-      - "v2/**"
-      - ".github/workflows/v2-current-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: v2
@@ -29,17 +36,17 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --ignore-scripts --no-audit --no-fund --silent
 
       - name: Run V2 tests
         run: npm test
 
       - name: Check canonical server modules
         run: |
-          node --check src/candidate-services.js
-          node --check src/http/candidate-app.js
-          node --check src/http/candidate-platform.js
-          node --check src/http/serve-candidate.js
+          node --check src/candidate-services-current.js
+          node --check src/http/candidate-app-current.js
+          node --check src/http/candidate-platform-current.js
+          node --check src/http/serve-current.js
           node --check src/realtime/project-event-broker.js
           node --check src/http/routes/realtime-routes.js
           node --check src/tickets/ticket-assignment-service.js
@@ -50,3 +57,4 @@ jobs:
           node --check web/app.js
           node --check web/live-events.js
           node --check web/i18n.js
+          node --check web/management.js
