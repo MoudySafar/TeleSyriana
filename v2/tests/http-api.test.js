@@ -77,6 +77,11 @@ function fakeServices() {
       async disableAccount() { return { user: { ...reema, id: "target", status: "disabled" } }; },
       async reactivateAccount() { return { user: { ...reema, id: "target", status: "active" } }; },
     },
+    tickets: {},
+    orders: {},
+    integrations: {},
+    chat: {},
+    jobs: {},
   };
 }
 
@@ -93,10 +98,6 @@ async function withServer(app, work) {
       server.close((error) => (error ? reject(error) : resolve()));
     });
   }
-}
-
-function cookiePair(setCookie) {
-  return String(setCookie || "").split(";")[0];
 }
 
 test("login sets HttpOnly session cookie and never returns raw token JSON", async () => {
