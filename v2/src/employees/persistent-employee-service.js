@@ -1,5 +1,12 @@
-import { hashLoginSecret } from "../auth/crypto.js";
+import { randomUUID } from "node:crypto";
+
 import { createAuthRepository } from "../auth/auth-repository.js";
+import { hashLoginSecret } from "../auth/crypto.js";
+import {
+  CAPABILITIES,
+  PROJECT_ROLES,
+  hasCapability,
+} from "../core/access-control.js";
 import { createRepositories } from "../db/repositories.js";
 import { withTransaction } from "../db/postgres.js";
 import {
@@ -10,6 +17,7 @@ import {
   reactivateEmployeeAccount,
   reactivateProjectMembership,
 } from "./employee-service.js";
+import { createMembershipAdminRepository } from "./membership-admin-repository.js";
 
 function notFound(entity, id) {
   const error = new Error(`${entity} not found: ${id}`);
@@ -17,16 +25,29 @@ function notFound(entity, id) {
   return error;
 }
 
+function forbidden(message = "Forbidden") {
+  const error = new Error(message);
+  error.code = "FORBIDDEN";
+  return error;
+}
+
+function invalidInput(message) {
+  const error = new Error(message);
+  error.code = "INVALID_INPUT";
+  return error;
+}
+
 function createPersistenceRepositories(db) {
   return {
     ...createRepositories(db),
     auth: createAuthRepository(db),
+    membershipAdmin: createMembershipAdminRepository(db),
   };
 }
 
 async function loadActorContext(repositories, actorId) {
   const actor = await repositories.users.findById(actorId);
-  if (!actor) throw notFound("Actor", actorId);
+  if (!actor || actor.status !== "active") throw notFound("Active actor", actorId);
 
   const memberships = await repositories.memberships.listForUser(actorId);
   return { actor, memberships };
@@ -43,6 +64,37 @@ async function persistAudit(repositories, auditEvent) {
   });
 }
 
+async function validateProjectSupervisor(repositories, { projectId, supervisorUserId }) {
+  if (!supervisorUserId) return null;
+
+  const supervisor = await repositories.users.findById(supervisorUserId);
+  if (!supervisor || supervisor.status !== "active") {
+    throw invalidInput("Selected supervisor must be an active employee");
+  }
+
+  const supervisorMembership = await repositories.memberships.find({
+    userId: supervisorUserId,
+    projectId,
+  });
+  if (
+    !supervisorMembership ||
+    supervisorMembership.status !== "active" ||
+    ![PROJECT_ROLES.SUPERVISOR, PROJECT_ROLES.MANAGER].includes(supervisorMembership.role)
+  ) {
+    throw invalidInput("Selected supervisor must be an active Supervisor or Manager in this project");
+  }
+
+  return supervisorMembership;
+}
+
+async function validateProjectTeam(repositories, { projectId, teamId }) {
+  if (!teamId) return null;
+  const teams = await repositories.teams.listForProject(projectId);
+  const team = teams.find((item) => item.id === teamId && item.status !== "archived");
+  if (!team) throw invalidInput("Selected team does not belong to this project");
+  return team;
+}
+
 export function createPersistentEmployeeService({
   pool,
   runInTransaction = withTransaction,
@@ -56,7 +108,7 @@ export function createPersistentEmployeeService({
   return {
     async createForProject({ actorId, projectId, input }) {
       if (!input?.temporarySecret) {
-        throw new Error("temporarySecret is required when creating an employee account");
+        throw invalidInput("temporarySecret is required when creating an employee account");
       }
 
       // Hash outside the DB transaction so CPU-heavy key derivation does not
@@ -74,6 +126,12 @@ export function createPersistentEmployeeService({
           existingUsers: duplicate ? [duplicate] : [],
           input,
         });
+
+        await validateProjectSupervisor(repositories, {
+          projectId,
+          supervisorUserId: input.supervisorUserId ?? input.supervisorId ?? null,
+        });
+        await validateProjectTeam(repositories, { projectId, teamId: input.teamId ?? null });
 
         const user = await repositories.users.create({
           id: domain.user.id,
@@ -106,6 +164,73 @@ export function createPersistentEmployeeService({
 
         const audit = await persistAudit(repositories, domain.auditEvent);
         return { user, membership, audit, mustResetLoginSecret: true };
+      });
+    },
+
+    async assignExistingToProject({
+      actorId,
+      projectId,
+      targetUserId,
+      role,
+      supervisorUserId = null,
+      teamId = null,
+    }) {
+      if (!Object.values(PROJECT_ROLES).includes(role)) {
+        throw invalidInput(`Invalid project role: ${role}`);
+      }
+
+      return transaction(async (repositories) => {
+        const { actor, memberships } = await loadActorContext(repositories, actorId);
+        if (!hasCapability({
+          user: actor,
+          memberships,
+          projectId,
+          capability: CAPABILITIES.EMPLOYEES_ASSIGN_PROJECT,
+        })) {
+          throw forbidden("Only CEO or HR can assign an existing employee to another project");
+        }
+
+        const targetUser = await repositories.users.findById(targetUserId);
+        if (!targetUser) throw notFound("User", targetUserId);
+        if (targetUser.status !== "active") {
+          throw invalidInput("Disabled employees must be reactivated before project assignment");
+        }
+
+        await validateProjectSupervisor(repositories, { projectId, supervisorUserId });
+        await validateProjectTeam(repositories, { projectId, teamId });
+
+        const previousMembership = await repositories.memberships.find({
+          userId: targetUserId,
+          projectId,
+        });
+
+        const membership = await repositories.membershipAdmin.assign({
+          id: previousMembership?.id || `membership:${randomUUID()}`,
+          userId: targetUserId,
+          projectId,
+          role,
+          supervisorUserId,
+        });
+
+        if (teamId) {
+          await repositories.teams.addMember({ teamId, userId: targetUserId });
+        }
+
+        const audit = await repositories.audit.append({
+          projectId,
+          actorUserId: actor.id,
+          action: previousMembership ? "employee.project_membership_updated" : "employee.project_assigned",
+          targetType: "user",
+          targetId: targetUserId,
+          metadata: {
+            previousRole: previousMembership?.role ?? null,
+            role,
+            supervisorUserId,
+            teamId,
+          },
+        });
+
+        return { user: targetUser, membership, audit };
       });
     },
 
