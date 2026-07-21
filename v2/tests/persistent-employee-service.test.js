@@ -16,9 +16,10 @@ function createFakeRepositories() {
   ];
   const audit = [];
   const teamMembers = [];
+  const revokedSessionUsers = [];
 
   return {
-    state: { users, memberships, audit, teamMembers },
+    state: { users, memberships, audit, teamMembers, revokedSessionUsers },
     users: {
       async findById(id) { return users.get(id) ?? null; },
       async findByStaffCode(staffCode) {
@@ -73,6 +74,12 @@ function createFakeRepositories() {
       async append(event) {
         audit.push(event);
         return event;
+      },
+    },
+    auth: {
+      async revokeAllUserSessions(userId) {
+        revokedSessionUsers.push(userId);
+        return [];
       },
     },
   };
@@ -140,9 +147,10 @@ test("Manager cannot persist a global account disable", async () => {
     /Forbidden/,
   );
   assert.equal(repositories.state.users.get("agent").status, "active");
+  assert.deepEqual(repositories.state.revokedSessionUsers, []);
 });
 
-test("HR can persist a global account disable without deleting the employee", async () => {
+test("HR global disable preserves employee and revokes all active sessions", async () => {
   const repositories = createFakeRepositories();
   const { service } = serviceWith(repositories);
 
@@ -151,5 +159,6 @@ test("HR can persist a global account disable without deleting the employee", as
   assert.equal(result.user.id, "agent");
   assert.equal(result.user.status, "disabled");
   assert.equal(repositories.state.users.has("agent"), true);
+  assert.deepEqual(repositories.state.revokedSessionUsers, ["agent"]);
   assert.equal(repositories.state.audit.at(-1).action, "employee.account_disabled");
 });
