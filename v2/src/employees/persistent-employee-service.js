@@ -1,3 +1,4 @@
+import { createAuthRepository } from "../auth/auth-repository.js";
 import { createRepositories } from "../db/repositories.js";
 import { withTransaction } from "../db/postgres.js";
 import {
@@ -13,6 +14,13 @@ function notFound(entity, id) {
   const error = new Error(`${entity} not found: ${id}`);
   error.code = "NOT_FOUND";
   return error;
+}
+
+function createPersistenceRepositories(db) {
+  return {
+    ...createRepositories(db),
+    auth: createAuthRepository(db),
+  };
 }
 
 async function loadActorContext(repositories, actorId) {
@@ -37,7 +45,7 @@ async function persistAudit(repositories, auditEvent) {
 export function createPersistentEmployeeService({
   pool,
   runInTransaction = withTransaction,
-  repositoryFactory = createRepositories,
+  repositoryFactory = createPersistenceRepositories,
 } = {}) {
   if (!pool) throw new TypeError("A database pool is required");
 
@@ -172,6 +180,7 @@ export function createPersistentEmployeeService({
 
         const domain = disableEmployeeAccount({ actor, memberships, targetUser });
         const user = await repositories.users.setStatus({ userId: targetUserId, status: "disabled" });
+        await repositories.auth.revokeAllUserSessions(targetUserId);
         const audit = await persistAudit(repositories, domain.auditEvent);
         return { user, audit };
       });
