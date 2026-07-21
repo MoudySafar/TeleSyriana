@@ -6,6 +6,7 @@ import { isGlobalProjectViewer } from "../core/access-control.js";
 import { checkDatabaseHealth } from "../db/postgres.js";
 import { createRepositories } from "../db/repositories.js";
 import { createPersistentEmployeeService } from "../employees/persistent-employee-service.js";
+import { createShopifyIntegrationService } from "../integrations/shopify-service.js";
 import { createProjectService } from "../projects/project-service.js";
 
 const DEFAULT_COOKIE_NAME = "ts_session";
@@ -95,6 +96,7 @@ function defaultServices(pool) {
       memberships: repositories.memberships,
     }),
     employees: createPersistentEmployeeService({ pool }),
+    integrations: createShopifyIntegrationService({ pool }),
     healthCheck: () => checkDatabaseHealth(pool),
   };
 }
@@ -104,7 +106,9 @@ function statusForError(error) {
   if (error?.code === "FORBIDDEN") return 403;
   if (error?.code === "NOT_FOUND") return 404;
   if (error?.code === "AUTH_LOCKED") return 429;
-  if (error?.code === "23505") return 409;
+  if (error?.code === "CONFLICT" || error?.code === "23505") return 409;
+  if (["SHOPIFY_AUTH_ERROR", "SHOPIFY_SHOP_MISMATCH", "SHOPIFY_VERIFY_ERROR"].includes(error?.code)) return 422;
+  if (["SHOPIFY_NETWORK_ERROR", "SHOPIFY_API_ERROR", "SHOPIFY_GRAPHQL_ERROR"].includes(error?.code)) return 502;
   if (error?.code === "23514") return 400;
   return 500;
 }
@@ -132,6 +136,18 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
       const token = getSessionToken(req, cookieName);
       const auth = await resolved.authentication.authenticateSession(token);
       req.auth = { ...auth, token };
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  const requireProject = async (req, _res, next) => {
+    try {
+      req.projectContext = await resolved.projects.requireProjectContext({
+        user: req.auth.user,
+        projectId: req.params.projectId,
+      });
       next();
     } catch (error) {
       next(error);
@@ -193,12 +209,7 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
     res.json({ success: true, projects });
   });
 
-  app.post("/api/projects/:projectId/employees", requireAuth, async (req, res) => {
-    await resolved.projects.requireProjectContext({
-      user: req.auth.user,
-      projectId: req.params.projectId,
-    });
-
+  app.post("/api/projects/:projectId/employees", requireAuth, requireProject, async (req, res) => {
     const result = await resolved.employees.createForProject({
       actorId: req.auth.user.id,
       projectId: req.params.projectId,
@@ -213,12 +224,7 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
     });
   });
 
-  app.patch("/api/projects/:projectId/employees/:userId/role", requireAuth, async (req, res) => {
-    await resolved.projects.requireProjectContext({
-      user: req.auth.user,
-      projectId: req.params.projectId,
-    });
-
+  app.patch("/api/projects/:projectId/employees/:userId/role", requireAuth, requireProject, async (req, res) => {
     const result = await resolved.employees.changeProjectRole({
       actorId: req.auth.user.id,
       projectId: req.params.projectId,
@@ -229,12 +235,7 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
     res.json({ success: true, membership: result.membership });
   });
 
-  app.post("/api/projects/:projectId/employees/:userId/disable", requireAuth, async (req, res) => {
-    await resolved.projects.requireProjectContext({
-      user: req.auth.user,
-      projectId: req.params.projectId,
-    });
-
+  app.post("/api/projects/:projectId/employees/:userId/disable", requireAuth, requireProject, async (req, res) => {
     const result = await resolved.employees.disableFromProject({
       actorId: req.auth.user.id,
       projectId: req.params.projectId,
@@ -244,12 +245,7 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
     res.json({ success: true, membership: result.membership });
   });
 
-  app.post("/api/projects/:projectId/employees/:userId/reactivate", requireAuth, async (req, res) => {
-    await resolved.projects.requireProjectContext({
-      user: req.auth.user,
-      projectId: req.params.projectId,
-    });
-
+  app.post("/api/projects/:projectId/employees/:userId/reactivate", requireAuth, requireProject, async (req, res) => {
     const result = await resolved.employees.reactivateInProject({
       actorId: req.auth.user.id,
       projectId: req.params.projectId,
@@ -273,6 +269,41 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
       targetUserId: req.params.userId,
     });
     res.json({ success: true, employee: safeUser(result.user) });
+  });
+
+  app.get("/api/projects/:projectId/integrations/shopify", requireAuth, requireProject, async (req, res) => {
+    const connections = await resolved.integrations.list({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+    });
+    res.json({ success: true, connections });
+  });
+
+  app.post("/api/projects/:projectId/integrations/shopify", requireAuth, requireProject, async (req, res) => {
+    const connection = await resolved.integrations.createPending({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      input: req.body || {},
+    });
+    res.status(201).json({ success: true, connection });
+  });
+
+  app.post("/api/projects/:projectId/integrations/shopify/:connectionId/verify", requireAuth, requireProject, async (req, res) => {
+    const result = await resolved.integrations.verify({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      connectionId: req.params.connectionId,
+    });
+    res.json({ success: true, ...result });
+  });
+
+  app.post("/api/projects/:projectId/integrations/shopify/:connectionId/activate", requireAuth, requireProject, async (req, res) => {
+    const connection = await resolved.integrations.activateVerifiedAsDefault({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      connectionId: req.params.connectionId,
+    });
+    res.json({ success: true, connection });
   });
 
   app.use((error, _req, res, _next) => {
