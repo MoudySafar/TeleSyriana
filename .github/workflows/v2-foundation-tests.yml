@@ -29,6 +29,10 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install V2 dependencies
+        working-directory: v2
+        run: npm install --ignore-scripts
+
       - name: Run V2 foundation tests
         working-directory: v2
         run: npm test

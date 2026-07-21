@@ -1,0 +1,52 @@
+name: TeleSyriana V2 Current Candidate
+
+on:
+  push:
+    branches:
+      - development/v2
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2-current-candidate.yml"
+  pull_request:
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2-current-candidate.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run V2 tests
+        run: npm test
+
+      - name: Check canonical server modules
+        run: |
+          node --check src/candidate-services.js
+          node --check src/http/candidate-app.js
+          node --check src/http/candidate-platform.js
+          node --check src/http/serve-candidate.js
+          node --check src/realtime/project-event-broker.js
+          node --check src/http/routes/realtime-routes.js
+          node --check src/tickets/ticket-assignment-service.js
+          node --check src/teams/team-service.js
+
+      - name: Check browser modules
+        run: |
+          node --check web/app.js
+          node --check web/live-events.js
+          node --check web/i18n.js

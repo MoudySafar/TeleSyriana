@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>TeleSyriana</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="loginView" class="login-view">
+      <section class="login-card">
+        <div class="brand-mark" aria-hidden="true">TS</div>
+        <div>
+          <h1 data-i18n="app.name">TeleSyriana</h1>
+          <p class="muted" data-i18n="app.subtitle">Operations Platform</p>
+        </div>
+        <div class="login-copy">
+          <h2 data-i18n="auth.title">Employee sign in</h2>
+          <p class="muted" data-i18n="auth.subtitle">Use your staff code and TeleSyriana login secret.</p>
+        </div>
+        <form id="loginForm" class="stack">
+          <label>
+            <span data-i18n="auth.staffCode">Staff code</span>
+            <input id="loginStaffCode" autocomplete="username" inputmode="numeric" required />
+          </label>
+          <label>
+            <span data-i18n="auth.secret">Login secret</span>
+            <input id="loginSecret" type="password" autocomplete="current-password" required />
+          </label>
+          <button id="loginButton" class="primary-button" type="submit" data-i18n="auth.signIn">Sign in</button>
+          <p id="loginError" class="form-error hidden" role="alert"></p>
+        </form>
+        <div class="login-controls">
+          <button class="ghost-button locale-button" type="button" data-locale="en">EN</button>
+          <button class="ghost-button locale-button" type="button" data-locale="ar">العربية</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="appShell" class="app-shell hidden">
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-mark small" aria-hidden="true">TS</div>
+          <div>
+            <strong data-i18n="app.name">TeleSyriana</strong>
+            <span data-i18n="app.subtitle">Operations Platform</span>
+          </div>
+        </div>
+
+        <section class="workspace-card">
+          <span class="eyebrow" data-i18n="workspace.current">Workspace</span>
+          <strong id="workspaceName">iPro</strong>
+          <span id="workspaceRole" class="muted small-text"></span>
+          <label id="projectSelectorWrap" class="hidden">
+            <span class="sr-only" data-i18n="workspace.select">Select project</span>
+            <select id="projectSelector"></select>
+          </label>
+        </section>
+
+        <nav id="navigation" class="navigation" aria-label="Main navigation"></nav>
+
+        <div class="sidebar-footer">
+          <div id="connectionState" class="connection-state" data-state="connected">
+            <span class="connection-dot"></span>
+            <span data-i18n="common.connected">Connected</span>
+          </div>
+        </div>
+      </aside>
+
+      <div class="app-main">
+        <header class="topbar">
+          <div class="topbar-start">
+            <button id="sidebarToggle" class="icon-button mobile-only" type="button" aria-label="Menu">☰</button>
+            <div>
+              <h1 id="pageTitle">Dashboard</h1>
+              <p id="pageSubtitle" class="muted"></p>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <div class="segmented" aria-label="Language">
+              <button class="locale-button" type="button" data-locale="en">EN</button>
+              <button class="locale-button" type="button" data-locale="ar">AR</button>
+            </div>
+            <label class="theme-control">
+              <span class="sr-only" data-i18n="theme.label">Theme</span>
+              <select id="themeSelector">
+                <option value="system" data-i18n="theme.system">System</option>
+                <option value="light" data-i18n="theme.light">Light</option>
+                <option value="dark" data-i18n="theme.dark">Dark</option>
+              </select>
+            </label>
+            <div class="user-chip">
+              <div id="userInitials" class="avatar">TS</div>
+              <div>
+                <strong id="userName">Employee</strong>
+                <span id="userRole" class="muted small-text"></span>
+              </div>
+            </div>
+            <button id="logoutButton" class="ghost-button" type="button" data-i18n="auth.logout">Log out</button>
+          </div>
+        </header>
+
+        <main id="pageContent" class="page-content" tabindex="-1"></main>
+      </div>
+    </div>
+
+    <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <div id="modalRoot"></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
