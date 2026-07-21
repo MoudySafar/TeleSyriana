@@ -52,6 +52,26 @@ test("Manager is scoped to assigned projects rather than global visibility", () 
   assert.equal(canAccessProject({ user, memberships, projectId: "kiddio" }), false);
 });
 
+test("Manager can manage employees inside the assigned project without globally disabling accounts", () => {
+  const user = { id: "manager-1", platformRole: PLATFORM_ROLES.MEMBER, status: "active" };
+  assert.equal(
+    hasCapability({ user, memberships, projectId: "ipro", capability: CAPABILITIES.EMPLOYEES_CREATE }),
+    true,
+  );
+  assert.equal(
+    hasCapability({ user, memberships, projectId: "ipro", capability: CAPABILITIES.EMPLOYEES_CHANGE_ROLE }),
+    true,
+  );
+  assert.equal(
+    hasCapability({ user, memberships, projectId: "ipro", capability: CAPABILITIES.EMPLOYEES_DISABLE_MEMBERSHIP }),
+    true,
+  );
+  assert.equal(
+    hasCapability({ user, memberships, projectId: "ipro", capability: CAPABILITIES.EMPLOYEES_DISABLE_ACCOUNT }),
+    false,
+  );
+});
+
 test("Supervisor gets team ticket capability but not project-wide ticket capability", () => {
   const user = { id: "reema", platformRole: PLATFORM_ROLES.MEMBER, status: "active" };
   assert.equal(
@@ -64,10 +84,14 @@ test("Supervisor gets team ticket capability but not project-wide ticket capabil
   );
 });
 
-test("HR account management does not automatically grant ticket project access", () => {
+test("HR can disable accounts but does not automatically gain ticket project content access", () => {
   const user = { id: "hr", platformRole: PLATFORM_ROLES.HR, status: "active" };
   assert.equal(
     hasCapability({ user, memberships, projectId: "ipro", capability: CAPABILITIES.EMPLOYEES_CREATE }),
+    true,
+  );
+  assert.equal(
+    hasCapability({ user, memberships, projectId: "ipro", capability: CAPABILITIES.EMPLOYEES_DISABLE_ACCOUNT }),
     true,
   );
   assert.equal(
