@@ -9,6 +9,7 @@ import { createPersistentEmployeeService } from "../employees/persistent-employe
 import { createShopifyIntegrationService } from "../integrations/shopify-service.js";
 import { createShopifyOrderService } from "../orders/shopify-order-service.js";
 import { createProjectService } from "../projects/project-service.js";
+import { createTicketService } from "../tickets/ticket-service.js";
 
 const DEFAULT_COOKIE_NAME = "ts_session";
 
@@ -103,6 +104,7 @@ function defaultServices(pool) {
       repositories,
       integrations,
     }),
+    tickets: createTicketService({ pool }),
     healthCheck: () => checkDatabaseHealth(pool),
   };
 }
@@ -275,6 +277,84 @@ export function createApp({ pool, services = null, cookieName = DEFAULT_COOKIE_N
       targetUserId: req.params.userId,
     });
     res.json({ success: true, employee: safeUser(result.user) });
+  });
+
+  app.get("/api/projects/:projectId/tickets/search", requireAuth, requireProject, async (req, res) => {
+    const tickets = await resolved.tickets.search({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      query: req.query.q,
+      limit: req.query.limit,
+    });
+    res.json({ success: true, tickets });
+  });
+
+  app.get("/api/projects/:projectId/tickets", requireAuth, requireProject, async (req, res) => {
+    const tickets = await resolved.tickets.listQueue({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      includeResolved: String(req.query.includeResolved || "false") === "true",
+      limit: req.query.limit,
+    });
+    res.json({ success: true, tickets });
+  });
+
+  app.post("/api/projects/:projectId/tickets", requireAuth, requireProject, async (req, res) => {
+    const ticket = await resolved.tickets.create({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      input: req.body || {},
+    });
+    res.status(201).json({ success: true, ticket });
+  });
+
+  app.get("/api/projects/:projectId/tickets/:ticketCode", requireAuth, requireProject, async (req, res) => {
+    const result = await resolved.tickets.getByCode({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      ticketCode: req.params.ticketCode,
+    });
+    res.json({ success: true, ...result });
+  });
+
+  app.patch("/api/projects/:projectId/tickets/:ticketCode/status", requireAuth, requireProject, async (req, res) => {
+    const ticket = await resolved.tickets.updateStatus({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      ticketCode: req.params.ticketCode,
+      status: req.body?.status,
+      expectedVersion: req.body?.expectedVersion ?? null,
+    });
+    res.json({ success: true, ticket });
+  });
+
+  app.post("/api/projects/:projectId/tickets/:ticketCode/comments", requireAuth, requireProject, async (req, res) => {
+    const comment = await resolved.tickets.addComment({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      ticketCode: req.params.ticketCode,
+      body: req.body?.body,
+    });
+    res.status(201).json({ success: true, comment });
+  });
+
+  app.patch("/api/projects/:projectId/ticket-comments/:commentId", requireAuth, requireProject, async (req, res) => {
+    const comment = await resolved.tickets.editComment({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      commentId: req.params.commentId,
+      body: req.body?.body,
+    });
+    res.json({ success: true, comment });
+  });
+
+  app.delete("/api/projects/:projectId/ticket-comments/:commentId", requireAuth, requireProject, async (req, res) => {
+    const comment = await resolved.tickets.deleteComment({
+      actorId: req.auth.user.id,
+      projectId: req.params.projectId,
+      commentId: req.params.commentId,
+    });
+    res.json({ success: true, comment });
   });
 
   app.get("/api/projects/:projectId/orders/search", requireAuth, requireProject, async (req, res) => {
